@@ -11,21 +11,21 @@ type BitMask struct {
 	len   uint
 }
 
-func New(len uint) BitMask {
-	return BitMask{store: make([]uint, (len+uintSize-1)/uintSize), len: len}
+func New(len uint) *BitMask {
+	return &BitMask{store: make([]uint, (len+uintSize-1)/uintSize), len: len}
 }
 
-func NewFromUint(values ...uint) BitMask {
+func NewFromUint(values ...uint) *BitMask {
 	store := make([]uint, len(values))
 	copy(store, values)
-	return BitMask{store: store, len: uintSize * uint(len(values))}
+	return &BitMask{store: store, len: uintSize * uint(len(values))}
 }
 
-func (bm BitMask) Len() uint {
+func (bm *BitMask) Len() uint {
 	return bm.len
 }
 
-func (bm BitMask) Set(index uint) {
+func (bm *BitMask) Set(index uint) {
 	checkBounds(bm.len, index)
 	bref, m := findBit(bm.store, index)
 	*bref |= m
@@ -39,19 +39,19 @@ func (bm BitMask) Set(index uint) {
 // 	*bref |= m
 // }
 
-func (bm BitMask) Clear(index uint) {
+func (bm *BitMask) Clear(index uint) {
 	checkBounds(bm.len, index)
 	bref, m := findBit(bm.store, index)
 	*bref &^= m
 }
 
-func (bm BitMask) Toggle(index uint) {
+func (bm *BitMask) Toggle(index uint) {
 	checkBounds(bm.len, index)
 	bref, m := findBit(bm.store, index)
 	*bref ^= m
 }
 
-func (bm BitMask) IsSet(index uint) bool {
+func (bm *BitMask) IsSet(index uint) bool {
 	checkBounds(bm.len, index)
 	bref, m := findBit(bm.store, index)
 	return (*bref & m) != 0
@@ -59,7 +59,7 @@ func (bm BitMask) IsSet(index uint) bool {
 
 // Copies bits from a source bit mask into a destination bit mask.
 // Returns the number of bits copied, which will be the minimum of src.Len() and dst.Len().
-func Copy(dst BitMask, src BitMask) uint {
+func Copy(dst *BitMask, src *BitMask) uint {
 	bitsN := dst.len
 	if src.len < dst.len {
 		bitsN = src.len
