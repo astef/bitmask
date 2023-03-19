@@ -11,21 +11,21 @@ import (
 func TestEmpty(t *testing.T) {
 	bm := BitMask{}
 	bm2 := New(0)
-	assert.Equal(t, bm.Len(), uint64(0))
-	assert.Equal(t, bm2.Len(), uint64(0))
+	assert.Equal(t, bm.Len(), uint(0))
+	assert.Equal(t, bm2.Len(), uint(0))
 }
 
 type sctTestCase struct {
-	n           uint64
-	setEvery    uint64
-	clearEvery  uint64
-	toggleEvery uint64
+	n           uint
+	setEvery    uint
+	clearEvery  uint
+	toggleEvery uint
 }
 
 func TestSetClearToggle(t *testing.T) {
 	nS, nM, nL, nXL := genN()
-	each := uint64(1)
-	none := uint64(math.MaxUint64)
+	each := uint(1)
+	none := uint(math.MaxUint)
 
 	tests := map[string]sctTestCase{
 		"only_set_S":  {nS, each, none, none},
@@ -59,30 +59,30 @@ func TestSetClearToggle(t *testing.T) {
 			bm := New(tc.n)
 
 			// setting
-			for i := uint64(0); i < bm.Len(); i++ {
+			for i := uint(0); i < bm.Len(); i++ {
 				if i%tc.setEvery == 0 {
 					bm.Set(i)
 				}
 			}
 
 			// clearing
-			for i := uint64(0); i < bm.Len(); i++ {
+			for i := uint(0); i < bm.Len(); i++ {
 				if i%tc.clearEvery == 0 {
 					bm.Clear(i)
 				}
 			}
 
 			// toggling
-			for i := uint64(0); i < bm.Len(); i++ {
+			for i := uint(0); i < bm.Len(); i++ {
 				if i%tc.toggleEvery == 0 {
 					bm.Toggle(i)
 				}
 			}
 
 			// checking
-			expectedSetButClear := []uint64{}
-			expectedClearButSet := []uint64{}
-			for i := uint64(0); i < bm.Len(); i++ {
+			expectedSetButClear := []uint{}
+			expectedClearButSet := []uint{}
+			for i := uint(0); i < bm.Len(); i++ {
 
 				wasSet := i%tc.setEvery == 0
 				wasCleared := i%tc.clearEvery == 0
@@ -122,46 +122,46 @@ func TestSetClearToggle(t *testing.T) {
 }
 
 type copyTestCase struct {
-	src         []uint64
-	srcLen      uint64
-	dst         []uint64
-	expectedDst []uint64
-	expectedN   uint64
+	src         []uint
+	srcLen      uint
+	dst         []uint
+	expectedDst []uint
+	expectedN   uint
 }
 
 func TestCopy(t *testing.T) {
 
 	tests := map[string]copyTestCase{
 		"equal_size": {
-			src:         []uint64{0, 0},
+			src:         []uint{0, 0},
 			srcLen:      128,
-			dst:         []uint64{math.MaxUint64, math.MaxUint64},
-			expectedDst: []uint64{0, 0},
-			expectedN:   uint64(128),
+			dst:         []uint{math.MaxUint, math.MaxUint},
+			expectedDst: []uint{0, 0},
+			expectedN:   uint(128),
 		},
 		"small_src": {
-			src:         []uint64{math.MaxUint64, 1 << 63},
+			src:         []uint{math.MaxUint, 1 << 63},
 			srcLen:      65,
-			dst:         []uint64{0, math.MaxUint64 >> 1, math.MaxUint64},
-			expectedDst: []uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64},
-			expectedN:   uint64(65),
+			dst:         []uint{0, math.MaxUint >> 1, math.MaxUint},
+			expectedDst: []uint{math.MaxUint, math.MaxUint, math.MaxUint},
+			expectedN:   uint(65),
 		},
 		"small_dst": {
-			src:         []uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64},
+			src:         []uint{math.MaxUint, math.MaxUint, math.MaxUint},
 			srcLen:      192,
-			dst:         []uint64{0, 0},
-			expectedDst: []uint64{math.MaxUint64, math.MaxUint64},
-			expectedN:   uint64(128),
+			dst:         []uint{0, 0},
+			expectedDst: []uint{math.MaxUint, math.MaxUint},
+			expectedN:   uint(128),
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			srcProto := NewFromUInt64(tc.src...)
+			srcProto := NewFromUint(tc.src...)
 			src := New(tc.srcLen)
 			Copy(src, srcProto)
 
-			dst := NewFromUInt64(tc.dst...)
-			expected := NewFromUInt64(tc.expectedDst...)
+			dst := NewFromUint(tc.dst...)
+			expected := NewFromUint(tc.expectedDst...)
 
 			// act
 			n := Copy(dst, src)
@@ -174,12 +174,12 @@ func TestCopy(t *testing.T) {
 
 }
 
-func genN() (nS uint64, nM uint64, nL uint64, nXL uint64) {
-	sws := int(STORE_WORD_SIZE)
+func genN() (nS uint, nM uint, nL uint, nXL uint) {
+	sws := int(uintSize)
 	nS, nM, nL, nXL =
-		uint64(1),
-		uint64(2),
-		uint64(3+rand.Intn(sws*2)),
-		uint64(sws*2+rand.Intn(sws*3))
+		uint(1),
+		uint(2),
+		uint(3+rand.Intn(sws*2)),
+		uint(sws*2+rand.Intn(sws*3))
 	return
 }

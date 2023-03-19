@@ -4,35 +4,34 @@ import (
 	"fmt"
 )
 
-const STORE_WORD_SIZE = uint64(64)
+const uintSize = 32 << (^uint(0) >> 63) // 32 or 64
 
 type BitMask struct {
-	store []uint64
-	len   uint64
+	store []uint
+	len   uint
 }
 
-func New(len uint64) BitMask {
-	return BitMask{store: make([]uint64, (len+STORE_WORD_SIZE-1)/STORE_WORD_SIZE), len: len}
+func New(len uint) BitMask {
+	return BitMask{store: make([]uint, (len+uintSize-1)/uintSize), len: len}
 }
 
-func NewFromUInt64(values ...uint64) BitMask {
-	store := make([]uint64, len(values))
+func NewFromUint(values ...uint) BitMask {
+	store := make([]uint, len(values))
 	copy(store, values)
-	wordSize := uint64(64)
-	return BitMask{store: store, len: wordSize * uint64(len(values))}
+	return BitMask{store: store, len: uintSize * uint(len(values))}
 }
 
-func (bm BitMask) Len() uint64 {
+func (bm BitMask) Len() uint {
 	return bm.len
 }
 
-func (bm BitMask) Set(index uint64) {
+func (bm BitMask) Set(index uint) {
 	checkBounds(bm.len, index)
 	bref, m := findBit(bm.store, index)
 	*bref |= m
 }
 
-// func (bm BitMask) SetRange(fromIndex uint64, toIndex uint64) {
+// func (bm BitMask) SetRange(fromIndex uint, toIndex uint) {
 // 	checkBounds(bm.len, fromIndex)
 // 	checkBounds(bm.len, toIndex)
 
@@ -40,19 +39,19 @@ func (bm BitMask) Set(index uint64) {
 // 	*bref |= m
 // }
 
-func (bm BitMask) Clear(index uint64) {
+func (bm BitMask) Clear(index uint) {
 	checkBounds(bm.len, index)
 	bref, m := findBit(bm.store, index)
 	*bref &^= m
 }
 
-func (bm BitMask) Toggle(index uint64) {
+func (bm BitMask) Toggle(index uint) {
 	checkBounds(bm.len, index)
 	bref, m := findBit(bm.store, index)
 	*bref ^= m
 }
 
-func (bm BitMask) IsSet(index uint64) bool {
+func (bm BitMask) IsSet(index uint) bool {
 	checkBounds(bm.len, index)
 	bref, m := findBit(bm.store, index)
 	return (*bref & m) != 0
@@ -60,24 +59,24 @@ func (bm BitMask) IsSet(index uint64) bool {
 
 // Copies bits from a source bit mask into a destination bit mask.
 // Returns the number of bits copied, which will be the minimum of src.Len() and dst.Len().
-func Copy(dst BitMask, src BitMask) uint64 {
+func Copy(dst BitMask, src BitMask) uint {
 	bitsN := dst.len
 	if src.len < dst.len {
 		bitsN = src.len
 	}
 
 	// copy whole part
-	wordsN := bitsN / STORE_WORD_SIZE
+	wordsN := bitsN / uintSize
 	copy(dst.store[:wordsN], src.store[:wordsN])
 
 	// copy remainder
-	remainderBitsN := bitsN % STORE_WORD_SIZE
+	remainderBitsN := bitsN % uintSize
 	if remainderBitsN == 0 {
 		return bitsN
 	}
 
-	shift := STORE_WORD_SIZE - remainderBitsN
-	mask := (^uint64(0) >> shift) << shift
+	shift := uintSize - remainderBitsN
+	mask := (^uint(0) >> shift) << shift
 	dst.store[wordsN] |= src.store[wordsN] | mask
 
 	return bitsN
@@ -103,14 +102,14 @@ func Copy(dst BitMask, src BitMask) uint64 {
 
 // }
 
-func checkBounds(len uint64, index uint64) {
+func checkBounds(len uint, index uint) {
 	if index >= len {
 		panic(fmt.Sprintf("index out of range (len=%v, index=%v)", len, index))
 	}
 }
 
-func findBit(store []uint64, index uint64) (*uint64, uint64) {
-	storeIndex := index / STORE_WORD_SIZE
-	byteMask := uint64(1) << (index % STORE_WORD_SIZE)
+func findBit(store []uint, index uint) (*uint, uint) {
+	storeIndex := index / uintSize
+	byteMask := uint(1) << (index % uintSize)
 	return &store[storeIndex], byteMask
 }
