@@ -2,29 +2,36 @@ package bitmask
 
 import (
 	"fmt"
+	"strings"
 )
 
 const uintMax = ^uint(0)
 const uintSize = 32 << (uintMax >> 63) // 32 or 64
-
-var uintFormat = fmt.Sprintf("%%0%vb", uintSize)
+const oneInBE = uint(1) << (uintSize - 1)
 
 const maxStringedUints = 8
 
 type BitMask struct {
+	// uints are stored in BE representation
 	store []uint
-	len   uint
-	// always in range [0 ; uintSize)
-	shift uint
+	// number of bits, doesn't include offset
+	len uint
+	// always < uintSize
+	offset uint
 }
 
 func New(len uint) *BitMask {
 	return &BitMask{store: make([]uint, (len+uintSize-1)/uintSize), len: len}
 }
 
+// Create a bitmask from uints, automatically reversing endianness, so that NewFromUint(1) produces the bitmask with the lowest bit set.
+// Len() of the resulting bitmask will always be equal to len(values) * sizeof(uint).
 func NewFromUint(values ...uint) *BitMask {
 	store := make([]uint, len(values))
-	copy(store, values)
+	for i, v := range values {
+		store[i] = reverse(v)
+	}
+	// copy(store, values)
 	return &BitMask{store: store, len: uintSize * uint(len(values))}
 }
 
@@ -33,35 +40,54 @@ func (bm *BitMask) Len() uint {
 	return bm.len
 }
 
-func (bm *BitMask) Set(index uint) {
-	checkBounds(bm.len, index)
-	bref, m := bm.getBit(index)
+func (bm *BitMask) Set(bitIndex uint) {
+	checkBounds(bm.len, bitIndex)
+	bref, m := bm.getBit(bitIndex)
 	*bref |= m
 }
 
-// func (bm BitMask) SetRange(fromIndex uint, toIndex uint) {
-// 	checkBounds(bm.len, fromIndex)
-// 	checkBounds(bm.len, toIndex)
+func (bm *BitMask) SetAll() {
+	if bm.len == 0 {
+		return
+	}
+	for i := 0; i < len(bm.store); i++ {
+		bm.store[i] |= bm.getStoreWordMask(i)
+	}
+}
 
-// 	bref, m := findBit(bm.store, index)
-// 	*bref |= m
-// }
-
-func (bm *BitMask) Clear(index uint) {
-	checkBounds(bm.len, index)
-	bref, m := bm.getBit(index)
+func (bm *BitMask) Clear(bitIndex uint) {
+	checkBounds(bm.len, bitIndex)
+	bref, m := bm.getBit(bitIndex)
 	*bref &^= m
 }
 
-func (bm *BitMask) Toggle(index uint) {
-	checkBounds(bm.len, index)
-	bref, m := bm.getBit(index)
+func (bm *BitMask) ClearAll() {
+	if bm.len == 0 {
+		return
+	}
+	for i := 0; i < len(bm.store); i++ {
+		bm.store[i] &^= bm.getStoreWordMask(i)
+	}
+}
+
+func (bm *BitMask) Toggle(bitIndex uint) {
+	checkBounds(bm.len, bitIndex)
+	bref, m := bm.getBit(bitIndex)
 	*bref ^= m
 }
 
-func (bm *BitMask) IsSet(index uint) bool {
-	checkBounds(bm.len, index)
-	bref, m := bm.getBit(index)
+func (bm *BitMask) ToggleAll() {
+	if bm.len == 0 {
+		return
+	}
+	for i := 0; i < len(bm.store); i++ {
+		bm.store[i] ^= bm.getStoreWordMask(i)
+	}
+}
+
+func (bm *BitMask) IsSet(bitIndex uint) bool {
+	checkBounds(bm.len, bitIndex)
+	bref, m := bm.getBit(bitIndex)
 	return (*bref & m) != 0
 }
 
@@ -73,22 +99,22 @@ func Copy(dst *BitMask, src *BitMask) uint {
 		return 0
 	}
 
-	srcShift := src.shift
-	dstShift := dst.shift
+	srcOffset := src.offset
+	dstOffset := dst.offset
 
-	if srcShift == dstShift {
+	if srcOffset == dstOffset {
 		var copyStartIndex uint = 0
-		copyEndIndex := ((copyLen - 1 + srcShift) / uintSize) + 1
-		remainderBitsN := (copyLen + srcShift) % uintSize
+		copyEndIndex := ((copyLen - 1 + srcOffset) / uintSize) + 1
+		remainderBitsN := (copyLen + srcOffset) % uintSize
 
-		if srcShift != 0 {
+		if srcOffset != 0 {
 			// have to copy first uint manually
 			copyUintPart(
-				uintSize-srcShift,
+				uintSize-srcOffset,
 				src.store[copyStartIndex],
-				srcShift,
+				srcOffset,
 				&dst.store[copyStartIndex],
-				dstShift,
+				dstOffset,
 			)
 			copyStartIndex++
 		}
@@ -113,33 +139,33 @@ func Copy(dst *BitMask, src *BitMask) uint {
 		// not optimized copy, by uint parts
 		availableInSrc := src.len
 		availableInDst := dst.len
-		currentSrcShift := srcShift
-		currentDstShift := dstShift
+		currentSrcOffset := srcOffset
+		currentDstOffset := dstOffset
 		currentSrcIndex := 0
 		currentDstIndex := 0
 		for availableInSrc != 0 && availableInDst != 0 {
-			srcRemainder := minUint(availableInSrc, uintSize-currentSrcShift)
-			dstRemainder := minUint(availableInDst, uintSize-currentDstShift)
+			srcRemainder := minUint(availableInSrc, uintSize-currentSrcOffset)
+			dstRemainder := minUint(availableInDst, uintSize-currentDstOffset)
 			copyLen = minUint(srcRemainder, dstRemainder)
 
 			copyUintPart(
 				copyLen,
 				src.store[currentSrcIndex],
-				currentSrcShift,
+				currentSrcOffset,
 				&dst.store[currentDstIndex],
-				currentDstShift,
+				currentDstOffset,
 			)
 
 			availableInSrc -= copyLen
 			availableInDst -= copyLen
-			currentSrcShift += copyLen
-			currentDstShift += copyLen
+			currentSrcOffset += copyLen
+			currentDstOffset += copyLen
 
-			if currentSrcShift == uintSize {
-				currentSrcShift = 0
+			if currentSrcOffset == uintSize {
+				currentSrcOffset = 0
 				currentSrcIndex++
-			} else { // optimizing, using the fact of "src.shift != dst.shift" here
-				currentDstShift = 0
+			} else { // optimizing, using the fact of "src.offset != dst.offset" here
+				currentDstOffset = 0
 				currentDstIndex++
 			}
 		}
@@ -152,81 +178,138 @@ func Copy(dst *BitMask, src *BitMask) uint {
 func (bm *BitMask) Slice(fromBit uint, toBit uint) *BitMask {
 	checkSliceBounds(fromBit, toBit, bm.len)
 	if fromBit == toBit {
-		// to avoid empty BitMask with shift
+		// to avoid empty BitMask with offset
 		return New(0)
 	}
 
 	fromStoreIndex := bm.getStoreIndex(fromBit)
-	toStoreIndex := bm.getStoreIndex(toBit) + 1
+	toStoreIndex := bm.getStoreIndex(toBit-1) + 1
 
 	return &BitMask{
-		store: bm.store[fromStoreIndex:toStoreIndex],
-		shift: (fromBit + bm.shift) % uintSize,
-		len:   toBit - fromBit,
+		store:  bm.store[fromStoreIndex:toStoreIndex],
+		offset: (fromBit + bm.offset) % uintSize,
+		len:    toBit - fromBit,
 	}
 }
 
-// Returns a closure function, which may be called many times to iterate
-// through all bits and get their value as a bool.
-// Closure will start returning nil after reaching the end.
-func (bm *BitMask) Iterator() func() *bool {
+type BitIterator struct {
+	Next func() (ok bool, isSet bool, index uint)
+}
+
+func (bm *BitMask) Iterator() BitIterator {
 	index := uint(0)
-	return func() *bool {
-		if index == bm.len {
-			return nil
-		}
-		bref, m := bm.getBit(index)
-		index++
-		isSet := (*bref & m) != 0
-		return &isSet
+	return BitIterator{
+		Next: func() (bool, bool, uint) {
+			if index == bm.len {
+				return false, false, index
+			}
+			bref, m := bm.getBit(index)
+			isSet := (*bref & m) != 0
+			indexTmp := index
+			index++
+			return true, isSet, indexTmp
+		},
 	}
 }
 
-// func (bm *BitMask) String() string {
-// 	if bm.len == 0 {
-// 		return "[0]{}"
-// 	}
-// 	var b strings.Builder
-// 	b.WriteString(fmt.Sprintf("[%v]{", bm.len))
+func (bm *BitMask) String() string {
+	if bm.len == 0 {
+		return "[0]{}"
+	}
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("[%v]{", bm.len))
 
-// 	// first word
-// 	first := fmt.Sprintf(uintFormat, bm.store[0])[bm.shift:]
+	storeLen := uint(len(bm.store))
+	maxStringedWords := minUint(storeLen, maxStringedUints)
+	firstSkippedIndex := maxStringedUints / uint(2)
+	numSkipped := uint(maxInt(len(bm.store)-maxStringedUints, 0))
 
-// 	// last word
-// 	last := fmt.Sprintf(uintFormat, )
+	for i := uint(0); i < maxStringedWords; i++ {
+		wordIndex := i
 
-// 	storeLen := uint(len(bm.store))
-// 	end := minUint(storeLen, maxStringedUints)
+		if numSkipped > 0 && i >= firstSkippedIndex {
+			if i == firstSkippedIndex {
+				b.WriteString("<more ")
+				b.WriteString(fmt.Sprint(numSkipped * uintSize))
+				b.WriteString(" bits> ")
+			}
+			wordIndex += numSkipped
+		}
 
-// 	for n, word := range bm.store[:end] {
-// 		if n != 0 {
-// 			b.WriteString(" ")
-// 		}
-// 		b.WriteString(fmt.Sprintf(uintFormat, word))
-// 	}
+		word := bm.store[wordIndex]
+		writeFromIndex := uint(0)
+		writeToIndex := uint(uintSize)
+		addSep := true
+		if wordIndex == 0 {
+			writeFromIndex = bm.offset
+		}
+		if wordIndex == storeLen-1 {
+			writeToIndex = uintSize - bm.getTailLen()
+			addSep = false
+		}
 
-// 	skipped := storeLen - end
-// 	if skipped > 0 {
-// 		b.WriteString(fmt.Sprintf(" ...(more %v values)", skipped))
-// 	}
+		writeBits(&b, word, writeFromIndex, writeToIndex)
 
-// 	b.WriteString("}")
-// 	return b.String()
-// }
+		if addSep {
+			b.WriteString(" ")
+		}
+	}
+	b.WriteString("}")
+	return b.String()
+}
 
-func (bm *BitMask) getRemainderLen(bitIndex uint) uint {
-	return (bm.shift + bitIndex) % uintSize
+func reverse(value uint) uint {
+	// TODO compare with bits.Reverse()
+	res := uint(0)
+	for i := uint(0); i < uintSize; i++ {
+		res |= (value & 1) << (uintSize - i - 1)
+		value >>= 1
+	}
+	return res
+}
+
+func writeBits(b *strings.Builder, v uint, fromIndex uint, toIndex uint) {
+	// write in store endianness (reversed)
+	v <<= fromIndex
+	i := fromIndex
+	for i < toIndex {
+		b.WriteByte('0' + byte((v&oneInBE)>>(uintSize-1)))
+		v <<= 1
+		i++
+	}
+}
+
+func (bm *BitMask) getBitOffset(bitIndex uint) uint {
+	return (bm.offset + bitIndex) % uintSize
+}
+
+func (bm *BitMask) getTailLen() uint {
+	return (uintSize - bm.getBitOffset(bm.len)) % uintSize
 }
 
 func (bm *BitMask) getStoreIndex(bitIndex uint) uint {
-	return (bm.shift + bitIndex) / uintSize
+	return (bm.offset + bitIndex) / uintSize
 }
 
 func (bm *BitMask) getBit(bitIndex uint) (*uint, uint) {
 	storeIndex := bm.getStoreIndex(bitIndex)
-	remainderLen := bm.getRemainderLen(bitIndex)
-	mask := uint(1) << remainderLen
+
+	bitOffset := bm.getBitOffset(bitIndex)
+
+	mask := oneInBE >> bitOffset
 	return &bm.store[storeIndex], mask
+}
+
+func (bm *BitMask) getStoreWordMask(storeIndex int) uint {
+	mask := uintMax
+	if storeIndex == 0 {
+		mask >>= bm.offset
+	}
+	if storeIndex == len(bm.store)-1 {
+		dropTailLen := bm.getTailLen()
+		mask = (mask >> dropTailLen) << dropTailLen
+	}
+	return mask
 }
 
 func minUint(a uint, b uint) uint {
@@ -235,22 +318,21 @@ func minUint(a uint, b uint) uint {
 	}
 	return b
 }
-
-func maxUint(a uint, b uint) uint {
+func maxInt(a int, b int) int {
 	if a > b {
 		return a
 	}
 	return b
 }
 
-func copyUintPart(len uint, src uint, srcShift uint, dst *uint, dstShift uint) {
+func copyUintPart(len uint, src uint, srcOffset uint, dst *uint, dstOffset uint) {
 	m := (uintMax << (uintSize - len))
-	srcMask := m >> srcShift
+	srcMask := m >> srcOffset
 	tmp := (src & srcMask)
-	if dstShift > srcShift {
-		tmp = tmp >> (dstShift - srcShift)
+	if dstOffset > srcOffset {
+		tmp = tmp >> (dstOffset - srcOffset)
 	} else {
-		tmp = tmp << (srcShift - dstShift)
+		tmp = tmp << (srcOffset - dstOffset)
 	}
 	*dst |= tmp
 }
