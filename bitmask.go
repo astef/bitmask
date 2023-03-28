@@ -103,7 +103,7 @@ func Copy(dst *BitMask, src *BitMask) uint {
 	dstOffset := dst.offset
 
 	if srcOffset == dstOffset {
-		var copyStartIndex uint = 0
+		copyStartIndex := uint(0)
 		copyEndIndex := ((copyLen - 1 + srcOffset) / uintSize) + 1
 		remainderBitsN := (copyLen + srcOffset) % uintSize
 
@@ -146,25 +146,25 @@ func Copy(dst *BitMask, src *BitMask) uint {
 		for availableInSrc != 0 && availableInDst != 0 {
 			srcRemainder := minUint(availableInSrc, uintSize-currentSrcOffset)
 			dstRemainder := minUint(availableInDst, uintSize-currentDstOffset)
-			copyLen = minUint(srcRemainder, dstRemainder)
+			partLen := minUint(srcRemainder, dstRemainder)
 
 			copyUintPart(
-				copyLen,
+				partLen,
 				src.store[currentSrcIndex],
 				currentSrcOffset,
 				&dst.store[currentDstIndex],
 				currentDstOffset,
 			)
 
-			availableInSrc -= copyLen
-			availableInDst -= copyLen
-			currentSrcOffset += copyLen
-			currentDstOffset += copyLen
+			availableInSrc -= partLen
+			availableInDst -= partLen
+			currentSrcOffset += partLen
+			currentDstOffset += partLen
 
 			if currentSrcOffset == uintSize {
 				currentSrcOffset = 0
 				currentSrcIndex++
-			} else { // optimizing, using the fact of "src.offset != dst.offset" here
+			} else { // since "src.offset != dst.offset" here
 				currentDstOffset = 0
 				currentDstIndex++
 			}
@@ -326,15 +326,25 @@ func maxInt(a int, b int) int {
 }
 
 func copyUintPart(len uint, src uint, srcOffset uint, dst *uint, dstOffset uint) {
-	m := (uintMax << (uintSize - len))
-	srcMask := m >> srcOffset
-	tmp := (src & srcMask)
+	lenMask := uintMax << (uintSize - len)
+
+	// read source bits
+	srcMask := lenMask >> srcOffset
+	bitsToCopy := (src & srcMask)
+
+	// align bits to destination offset
 	if dstOffset > srcOffset {
-		tmp = tmp >> (dstOffset - srcOffset)
+		bitsToCopy = bitsToCopy >> (dstOffset - srcOffset)
 	} else {
-		tmp = tmp << (srcOffset - dstOffset)
+		bitsToCopy = bitsToCopy << (srcOffset - dstOffset)
 	}
-	*dst |= tmp
+
+	// clear target bits
+	dstMask := lenMask >> dstOffset
+	*dst &^= dstMask
+
+	// copy
+	*dst |= bitsToCopy
 }
 
 func checkSliceBounds(fromIndex uint, toIndex uint, capacity uint) {

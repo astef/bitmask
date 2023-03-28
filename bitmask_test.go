@@ -145,6 +145,12 @@ type copyTestCase struct {
 
 func TestCopy(t *testing.T) {
 	tests := map[string]copyTestCase{
+		"empty": {
+			base:         NewFromUint(uintMax),
+			srcSlice:     slice{0, 0},
+			dstSlice:     slice{0, uintSize},
+			expectedBase: NewFromUint(uintMax).String(),
+		},
 		"equal_size": {
 			base:         NewFromUint(uintMax, 0),
 			srcSlice:     slice{0, uintSize},
@@ -204,17 +210,29 @@ func TestCopy(t *testing.T) {
 		},
 
 		"2w_overlap1l_fw": {
-			base:         NewFromUint(1, uintMax),
+			base:         NewFromUint(0, uintMax),
 			srcSlice:     slice{0, uintSize},
 			dstSlice:     slice{uintSize - 1, 2 * uintSize},
-			expectedBase: NewFromUint(0, 3).String(),
+			expectedBase: NewFromUint(0, ^(uintMax >> 1)).String(),
 		},
-
 		"2w_overlap1r_fw": {
 			base:         NewFromUint(uintMax, 0, uintMax),
 			srcSlice:     slice{0, uintSize + 1},
 			dstSlice:     slice{uintSize, 2 * uintSize},
 			expectedBase: NewFromUint(uintMax, uintMax, uintMax).String(),
+		},
+
+		"2w_overlap32r_fw": {
+			base:         NewFromUint(0, uintMax),
+			srcSlice:     slice{uintSize / 2, uintSize + uintSize/2},
+			dstSlice:     slice{uintSize, 2 * uintSize},
+			expectedBase: NewFromUint(0, reverse(uintMax>>(uintSize/2))).String(),
+		},
+		"2w_overlap32r_bw": {
+			base:         NewFromUint(0, uintMax),
+			srcSlice:     slice{uintSize, 2 * uintSize},
+			dstSlice:     slice{uintSize / 2, uintSize + uintSize/2},
+			expectedBase: NewFromUint(reverse(uintMax>>(uintSize/2)), uintMax).String(),
 		},
 	}
 	for name, tc := range tests {
@@ -226,7 +244,11 @@ func TestCopy(t *testing.T) {
 			n := Copy(dst, src)
 
 			// assert
-			assert.Equal(t, minUint(tc.srcSlice.to-tc.srcSlice.from, tc.dstSlice.to-tc.dstSlice.from), n)
+			assert.Equal(
+				t,
+				int(minUint(tc.srcSlice.to-tc.srcSlice.from, tc.dstSlice.to-tc.dstSlice.from)),
+				int(n),
+				"copy returned wrong number of bits")
 			assert.Equal(t, tc.expectedBase, tc.base.String())
 		})
 	}
@@ -455,6 +477,11 @@ func TestRangeOps(t *testing.T) {
 		ops      []rangeOps
 		expected string
 	}{
+		"zerolen": {
+			New(0),
+			[]rangeOps{ToggleAll, ClearAll, SetAll},
+			"[0]{}",
+		},
 		"1w_cleared_clear": {
 			NewFromUint(0),
 			[]rangeOps{ClearAll},
@@ -579,37 +606,6 @@ func TestStringSkips(t *testing.T) {
 		})
 	}
 }
-
-// func TestWriteBits(t *testing.T) {
-// 	for name, tc := range map[string]struct {
-// 		v, fromIndex, toIndex uint
-// 		expected              string
-// 	}{
-// 		"full_0":   {0, 0, 64, "0000000000000000000000000000000000000000000000000000000000000000"},
-// 		"full_1":   {1, 0, 64, "1000000000000000000000000000000000000000000000000000000000000000"},
-// 		"full_2":   {2, 0, 64, "0100000000000000000000000000000000000000000000000000000000000000"},
-// 		"full_3":   {3, 0, 64, "1100000000000000000000000000000000000000000000000000000000000000"},
-// 		"full_4":   {4, 0, 64, "0010000000000000000000000000000000000000000000000000000000000000"},
-// 		"full_x":   {0xB80000000000000A, 0, 64, "0101000000000000000000000000000000000000000000000000000000011101"},
-// 		"right1_x": {0xB80000000000000A, 1, 64, "101000000000000000000000000000000000000000000000000000000011101"},
-// 		"right2_x": {0xB80000000000000A, 2, 64, "01000000000000000000000000000000000000000000000000000000011101"},
-// 		"right3_x": {0xB80000000000000A, 3, 64, "1000000000000000000000000000000000000000000000000000000011101"},
-// 		"left1_x":  {0xB80000000000000A, 0, 63, "010100000000000000000000000000000000000000000000000000000001110"},
-// 		"left2_x":  {0xB80000000000000A, 0, 62, "01010000000000000000000000000000000000000000000000000000000111"},
-// 		"left3_x":  {0xB80000000000000A, 0, 61, "0101000000000000000000000000000000000000000000000000000000011"},
-// 		"mid60_x":  {0xB80000000000000A, 3, 60, "100000000000000000000000000000000000000000000000000000001"},
-// 		"mid59_x":  {0xB80000000000000A, 4, 59, "0000000000000000000000000000000000000000000000000000000"},
-// 		"mid2_x":   {0xB80000000000000A, 1, 3, "10"},
-// 		"mid1_x":   {0xB80000000000000A, 3, 4, "1"},
-// 	} {
-// 		t.Run(name, func(t *testing.T) {
-// 			var b strings.Builder
-// 			writeBits(&b, tc.v, tc.fromIndex, tc.toIndex)
-// 			assert.Equal(t, tc.expected, b.String())
-// 		})
-// 	}
-
-// }
 
 func TestNewFromUint(t *testing.T) {
 	bm := NewFromUint(1)
