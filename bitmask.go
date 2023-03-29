@@ -11,6 +11,7 @@ const oneInBE = uint(1) << (uintSize - 1)
 
 const maxStringedUints = 8
 
+// Represents a fixed-size array of 0/1 bits.
 type BitMask struct {
 	// uints are stored in BE representation
 	store []uint
@@ -20,6 +21,7 @@ type BitMask struct {
 	offset uint
 }
 
+// Creates new BitMask of specified length (number of bits). All bits will be cleared.
 func New(len uint) *BitMask {
 	return &BitMask{store: make([]uint, (len+uintSize-1)/uintSize), len: len}
 }
@@ -40,12 +42,14 @@ func (bm *BitMask) Len() uint {
 	return bm.len
 }
 
+// Sets the bit by bitIndex to 1.
 func (bm *BitMask) Set(bitIndex uint) {
 	checkBounds(bm.len, bitIndex)
 	bref, m := bm.getBit(bitIndex)
 	*bref |= m
 }
 
+// Sets all bits to 1. Use in combination with Slice to set the range of bits.
 func (bm *BitMask) SetAll() {
 	if bm.len == 0 {
 		return
@@ -55,12 +59,14 @@ func (bm *BitMask) SetAll() {
 	}
 }
 
+// Clears the bit by bitIndex (sets it to 0).
 func (bm *BitMask) Clear(bitIndex uint) {
 	checkBounds(bm.len, bitIndex)
 	bref, m := bm.getBit(bitIndex)
 	*bref &^= m
 }
 
+// Clears all bits. Use in combination with Slice to clear the range of bits.
 func (bm *BitMask) ClearAll() {
 	if bm.len == 0 {
 		return
@@ -70,12 +76,14 @@ func (bm *BitMask) ClearAll() {
 	}
 }
 
+// Reverses the value of the bit by bitIndex.
 func (bm *BitMask) Toggle(bitIndex uint) {
 	checkBounds(bm.len, bitIndex)
 	bref, m := bm.getBit(bitIndex)
 	*bref ^= m
 }
 
+// Reverses the value of all bits. Use in combination with Slice to reverse the range of bits.
 func (bm *BitMask) ToggleAll() {
 	if bm.len == 0 {
 		return
@@ -85,6 +93,7 @@ func (bm *BitMask) ToggleAll() {
 	}
 }
 
+// Checks, whether the bit by bitIndex is set or cleared. Returns true if bit is set, and false if it's cleared.
 func (bm *BitMask) IsSet(bitIndex uint) bool {
 	checkBounds(bm.len, bitIndex)
 	bref, m := bm.getBit(bitIndex)
@@ -92,6 +101,7 @@ func (bm *BitMask) IsSet(bitIndex uint) bool {
 }
 
 // Copies bits from a source bit mask into a destination bit mask.
+// It's safe to copy overlapping bitmasks (which were created by slicing the original one).
 // Returns the number of bits copied, which will be the minimum of src.Len() and dst.Len().
 func Copy(dst *BitMask, src *BitMask) uint {
 	copyLen := minUint(src.len, dst.len)
@@ -174,6 +184,9 @@ func Copy(dst *BitMask, src *BitMask) uint {
 	return copyLen
 }
 
+// Effectively creates a new BitMask, without copying elements, just like regular slices work.
+// As a side-effect, change to the sliced bitmask will be visible to original bitmask (and other way around),
+// as well as to other "overlapping" slices.
 // Selects a half-open range which includes the "from" bit, but excludes the "to" one.
 func (bm *BitMask) Slice(fromBit uint, toBit uint) *BitMask {
 	checkSliceBounds(fromBit, toBit, bm.len)
@@ -192,10 +205,25 @@ func (bm *BitMask) Slice(fromBit uint, toBit uint) *BitMask {
 	}
 }
 
+// Stateful iterator.
+// Example of usage:
+//	it := bm.Iterator()
+// 	for {
+//		ok, value, index := it.Next()
+//		if !ok {
+//			break;
+//		}
+//		// use the value
+//	}
 type BitIterator struct {
+	// Atttempts to get the next item from the iterator.
+	// If there're no more values left, ok will be false.
 	Next func() (ok bool, isSet bool, index uint)
 }
 
+// Creates stateful iterator to iterate through all the bits.
+// See BitIterator doc for an example.
+// It is an equivalent of just calling IsSet for each bit of a BitMask.
 func (bm *BitMask) Iterator() BitIterator {
 	index := uint(0)
 	return BitIterator{
@@ -212,6 +240,10 @@ func (bm *BitMask) Iterator() BitIterator {
 	}
 }
 
+// Returns string representation of a bitmask in the form "[length]{bits}".
+// For example: [4]{0100}
+// It is O(1) operation and it will skip bits after some amount of them.
+// Should not be parsed, format is not fixed.
 func (bm *BitMask) String() string {
 	if bm.len == 0 {
 		return "[0]{}"
