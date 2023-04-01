@@ -234,6 +234,58 @@ func TestCopy(t *testing.T) {
 			dstSlice:     slice{uintSize / 2, uintSize + uintSize/2},
 			expectedBase: NewFromUint(reverse(uintMax>>(uintSize/2)), uintMax).String(),
 		},
+
+		"3w_overlap_same_offset0_fw": {
+			base:         NewFromUint(uintMax, 0, uintMax),
+			srcSlice:     slice{0, uintSize + 2},
+			dstSlice:     slice{uintSize, 2*uintSize + 2},
+			expectedBase: NewFromUint(uintMax, uintMax, reverse(uintMax>>2)).String(),
+		},
+		"3w_overlap_same_offset0_bw": {
+			base:         NewFromUint(uintMax, 0, uintMax),
+			srcSlice:     slice{uintSize, 2*uintSize + 2},
+			dstSlice:     slice{0, uintSize + 2},
+			expectedBase: NewFromUint(0, reverse(0b1100000000000000000000000000000000000000000000000000000000000000), uintMax).String(),
+		},
+
+		"3w_overlap_same_offset1_fw": {
+			base:         NewFromUint(uintMax, 0, uintMax),
+			srcSlice:     slice{1, uintSize + 2},
+			dstSlice:     slice{uintSize + 1, 2*uintSize + 2},
+			expectedBase: NewFromUint(uintMax, reverse(uintMax>>1), reverse(uintMax>>2)).String(),
+		},
+		"3w_overlap_same_offset1_bw": {
+			base:         NewFromUint(uintMax, 0, uintMax),
+			srcSlice:     slice{uintSize + 1, 2*uintSize + 2},
+			dstSlice:     slice{1, uintSize + 2},
+			expectedBase: NewFromUint(1, reverse(0b1100000000000000000000000000000000000000000000000000000000000000), uintMax).String(),
+		},
+
+		"2w_small_dst_same_offset0": {
+			base:         NewFromUint(uintMax, 0),
+			srcSlice:     slice{0, uintSize},
+			dstSlice:     slice{uintSize, uintSize + 2},
+			expectedBase: NewFromUint(uintMax, reverse(0b1100000000000000000000000000000000000000000000000000000000000000)).String(),
+		},
+		"3w_small_dst_same_offset0": {
+			base:         NewFromUint(uintMax, 0, 0),
+			srcSlice:     slice{0, uintSize},
+			dstSlice:     slice{uintSize * 2, uintSize*2 + 2},
+			expectedBase: NewFromUint(uintMax, 0, reverse(0b1100000000000000000000000000000000000000000000000000000000000000)).String(),
+		},
+
+		"2w_small_dst_same_offset2": {
+			base:         NewFromUint(uintMax, 0),
+			srcSlice:     slice{2, uintSize},
+			dstSlice:     slice{uintSize + 2, uintSize + 4},
+			expectedBase: NewFromUint(uintMax, reverse(0b0011000000000000000000000000000000000000000000000000000000000000)).String(),
+		},
+		"3w_small_dst_same_offset2": {
+			base:         NewFromUint(uintMax, 0, 0),
+			srcSlice:     slice{2, uintSize},
+			dstSlice:     slice{uintSize*2 + 2, uintSize*2 + 4},
+			expectedBase: NewFromUint(uintMax, 0, reverse(0b0011000000000000000000000000000000000000000000000000000000000000)).String(),
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

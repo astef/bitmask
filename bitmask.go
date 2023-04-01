@@ -2,7 +2,9 @@ package bitmask
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
+	"unsafe"
 )
 
 const uintMax = ^uint(0)
@@ -100,83 +102,147 @@ func (bm *BitMask) IsSet(bitIndex uint) bool {
 	return (*bref & m) != 0
 }
 
+func copyFirstUintSameOffset(totalCopyLen uint, src *BitMask, dst *BitMask) {
+	copyUintPart(
+		minUint(totalCopyLen, uintSize-src.offset),
+		src.store[0],
+		src.offset,
+		&dst.store[0],
+		dst.offset,
+	)
+}
+
+func copyLastUintSameOffset(totalCopyLen uint, lastUintIndex uint, src *BitMask, dst *BitMask) {
+	remainderBitsN := (totalCopyLen + src.offset) % uintSize
+	copyUintPart(
+		minUint(totalCopyLen, remainderBitsN),
+		src.store[lastUintIndex],
+		0,
+		&dst.store[lastUintIndex],
+		0,
+	)
+}
+
 // Copies bits from a source bit mask into a destination bit mask.
 // It's safe to copy overlapping bitmasks (which were created by slicing the original one).
 // Returns the number of bits copied, which will be the minimum of src.Len() and dst.Len().
 func Copy(dst *BitMask, src *BitMask) uint {
+	// how many bits to copy
 	copyLen := minUint(src.len, dst.len)
 	if copyLen == 0 {
 		return 0
+	}
+
+	// in what direction to copy (to handle overlapping data)
+	srcDataPtr := (*reflect.SliceHeader)(unsafe.Pointer(&src.store)).Data
+	dstDataPtr := (*reflect.SliceHeader)(unsafe.Pointer(&dst.store)).Data
+	fwdDirection := false
+	if dstDataPtr < srcDataPtr {
+		fwdDirection = true
 	}
 
 	srcOffset := src.offset
 	dstOffset := dst.offset
 
 	if srcOffset == dstOffset {
-		copyStartIndex := uint(0)
-		copyEndIndex := ((copyLen - 1 + srcOffset) / uintSize) + 1
-		remainderBitsN := (copyLen + srcOffset) % uintSize
+		copyEndIndex := ((srcOffset + copyLen - 1) / uintSize) + 1
+		bulkCopyStartIndex := uint(1)
+		bulkCopyEndIndex := copyEndIndex - 1
 
-		if srcOffset != 0 {
-			// have to copy first uint manually
-			copyUintPart(
-				uintSize-srcOffset,
-				src.store[copyStartIndex],
-				srcOffset,
-				&dst.store[copyStartIndex],
-				dstOffset,
-			)
-			copyStartIndex++
-		}
-
-		if remainderBitsN != 0 {
-			// have to copy last uint manually
-			copyEndIndex--
-			copyUintPart(
-				remainderBitsN,
-				src.store[copyEndIndex],
-				0,
-				&dst.store[copyEndIndex],
-				0,
-			)
-		}
-
-		if copyStartIndex != copyEndIndex {
-			// copy whole part
-			copy(dst.store[copyStartIndex:copyEndIndex], src.store[copyStartIndex:copyEndIndex])
+		if fwdDirection {
+			copyFirstUintSameOffset(copyLen, src, dst)
+			if bulkCopyStartIndex < bulkCopyEndIndex {
+				copy(dst.store[bulkCopyStartIndex:bulkCopyEndIndex], src.store[bulkCopyStartIndex:bulkCopyEndIndex])
+			}
+			if copyEndIndex > 1 {
+				copyLastUintSameOffset(copyLen, copyEndIndex-1, src, dst)
+			}
+		} else {
+			if copyEndIndex > 1 {
+				copyLastUintSameOffset(copyLen, copyEndIndex-1, src, dst)
+			}
+			if bulkCopyStartIndex < bulkCopyEndIndex {
+				copy(dst.store[bulkCopyStartIndex:bulkCopyEndIndex], src.store[bulkCopyStartIndex:bulkCopyEndIndex])
+			}
+			copyFirstUintSameOffset(copyLen, src, dst)
 		}
 	} else {
-		// not optimized copy, by uint parts
+		// not optimized copy, only by uint parts
 		availableInSrc := src.len
 		availableInDst := dst.len
-		currentSrcOffset := srcOffset
-		currentDstOffset := dstOffset
-		currentSrcIndex := 0
-		currentDstIndex := 0
-		for availableInSrc != 0 && availableInDst != 0 {
-			srcRemainder := minUint(availableInSrc, uintSize-currentSrcOffset)
-			dstRemainder := minUint(availableInDst, uintSize-currentDstOffset)
-			partLen := minUint(srcRemainder, dstRemainder)
 
+		var currentSrcCursor, currentDstCursor uint
+		if fwdDirection {
+			currentSrcCursor = srcOffset
+			currentDstCursor = dstOffset
+		} else {
+			currentSrcCursor = (srcOffset + copyLen) % uintSize
+			if currentSrcCursor == 0 {
+				currentSrcCursor = uintSize
+			}
+			currentDstCursor = (dstOffset + copyLen) % uintSize
+			if currentDstCursor == 0 {
+				currentDstCursor = uintSize
+			}
+		}
+
+		var currentSrcIndex, currentDstIndex uint
+		if !fwdDirection {
+			currentSrcIndex = (srcOffset + copyLen - 1) / uintSize
+			currentDstIndex = (dstOffset + copyLen - 1) / uintSize
+		}
+
+		for availableInSrc != 0 && availableInDst != 0 {
+			// length of the copied part
+			var srcPartLen, dstPartLen uint
+			if fwdDirection {
+				srcPartLen = minUint(availableInSrc, uintSize-currentSrcCursor)
+				dstPartLen = minUint(availableInDst, uintSize-currentDstCursor)
+			} else {
+				srcPartLen = minUint(availableInSrc, currentSrcCursor)
+				dstPartLen = minUint(availableInDst, currentDstCursor)
+			}
+			partLen := minUint(srcPartLen, dstPartLen)
+
+			// copy
+			srcPartOffset := currentSrcCursor
+			dstPartOffset := currentDstCursor
+			if !fwdDirection {
+				srcPartOffset = currentSrcCursor - partLen
+				dstPartOffset = currentDstCursor - partLen
+			}
 			copyUintPart(
 				partLen,
 				src.store[currentSrcIndex],
-				currentSrcOffset,
+				srcPartOffset,
 				&dst.store[currentDstIndex],
-				currentDstOffset,
+				dstPartOffset,
 			)
 
+			// update variables
 			availableInSrc -= partLen
 			availableInDst -= partLen
-			currentSrcOffset += partLen
-			currentDstOffset += partLen
 
-			if currentSrcOffset == uintSize {
-				currentSrcOffset = 0
-				currentSrcIndex++
-			} else { // since "src.offset != dst.offset" here
-				currentDstOffset = 0
-				currentDstIndex++
+			if fwdDirection {
+				currentSrcCursor += partLen
+				currentDstCursor += partLen
+				if currentSrcCursor == uintSize {
+					currentSrcCursor = 0
+					currentSrcIndex++
+				} else { // since "src.offset != dst.offset" here
+					currentDstCursor = 0
+					currentDstIndex++
+				}
+			} else {
+				currentSrcCursor -= partLen
+				currentDstCursor -= partLen
+				if currentSrcCursor == 0 {
+					currentSrcCursor = uintSize
+					currentSrcIndex--
+				} else { // since "src.offset != dst.offset" here
+					currentDstCursor = uintSize
+					currentDstIndex--
+				}
 			}
 		}
 	}
@@ -207,8 +273,9 @@ func (bm *BitMask) Slice(fromBit uint, toBit uint) *BitMask {
 
 // Stateful iterator.
 // Example of usage:
+//
 //	it := bm.Iterator()
-// 	for {
+//	for {
 //		ok, value, index := it.Next()
 //		if !ok {
 //			break;
