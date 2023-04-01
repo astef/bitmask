@@ -286,6 +286,9 @@ type BitIterator struct {
 	// Atttempts to get the next item from the iterator.
 	// If there're no more values left, ok will be false.
 	Next func() (ok bool, isSet bool, index uint)
+
+	// Resets iterator, so it can be reused
+	Reset func()
 }
 
 // Creates stateful iterator to iterate through all the bits.
@@ -303,6 +306,9 @@ func (bm *BitMask) Iterator() BitIterator {
 			indexTmp := index
 			index++
 			return true, isSet, indexTmp
+		},
+		Reset: func() {
+			index = 0
 		},
 	}
 }

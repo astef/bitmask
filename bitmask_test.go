@@ -686,3 +686,40 @@ func TestDocExample(t *testing.T) {
 
 	assert.Equal(t, "[4]{1000}", bm.String())
 }
+
+// returns indexes of all set bits in a bitmask
+func indexes(it BitIterator) []int {
+	indexes := make([]int, 0)
+	for {
+		ok, isSet, index := it.Next()
+		if !ok {
+			break
+		}
+		// use the value
+		if isSet {
+			indexes = append(indexes, int(index))
+		}
+	}
+	return indexes
+}
+func TestIndexes(t *testing.T) {
+	bm := New(200)
+	bm.Set(1)
+	bm.Set(10)
+	bm.Set(100)
+
+	it := bm.Iterator()
+	i1 := indexes(it)
+	it.Reset()
+	i2 := indexes(it)
+	it.Reset()
+	i3 := indexes(it)
+	it.Reset()
+	i4 := indexes(it)
+
+	expected := []int{1, 10, 100}
+	assert.Equal(t, expected, i1)
+	assert.Equal(t, expected, i2)
+	assert.Equal(t, expected, i3)
+	assert.Equal(t, expected, i4)
+}
