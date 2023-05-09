@@ -28,20 +28,41 @@ func New(len uint) *BitMask {
 	return &BitMask{store: make([]uint, (len+uintSize-1)/uintSize), len: len}
 }
 
-// Create a bitmask from uints, automatically reversing endianness, so that NewFromUint(1) produces the bitmask with the lowest bit set.
+// Create a bitmask from uints, automatically reversing endianness, so that NewFromUint(1) produces the bitmask with the lowest (leftmost) bit set.
 // Len() of the resulting bitmask will always be equal to len(values) * sizeof(uint).
 func NewFromUint(values ...uint) *BitMask {
 	store := make([]uint, len(values))
 	for i, v := range values {
 		store[i] = reverse(v)
 	}
-	// copy(store, values)
+	return &BitMask{store: store, len: uintSize * uint(len(values))}
+}
+
+// Create a bitmask from uints, without endianness reversal, more effective version of NewFromUint
+func NewFromUintRaw(values ...uint) *BitMask {
+	store := make([]uint, len(values))
+	copy(store, values)
 	return &BitMask{store: store, len: uintSize * uint(len(values))}
 }
 
 // Returns the legth of bitmask in bits. It will never be changed for the given receiver.
 func (bm *BitMask) Len() uint {
 	return bm.len
+}
+
+// Returns the legth of bitmask in uints. Result is always positive and multiple of size(uint), e.g.: 32, 64, 96, 128, ...
+func (bm *BitMask) LenUint() int {
+	return len(bm.store)
+}
+
+// Returns uint by index, reversing the endianness, so that {1000...} bitmask is represented by uint(1)
+func (bm *BitMask) Uint(index int) uint {
+	return reverse(bm.store[index])
+}
+
+// Returns uint without reversing, more effective version of Uint method
+func (bm *BitMask) UintRaw(index int) uint {
+	return bm.store[index]
 }
 
 // Sets the bit by bitIndex to 1.
