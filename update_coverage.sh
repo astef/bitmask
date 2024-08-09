@@ -18,5 +18,8 @@ fi
 # Generate the badge URL using shields.io
 BADGE_URL="https://img.shields.io/badge/coverage-${COVERAGE}%25-${COLOR}.svg"
 
-# Write the badge markdown to README.md
-echo -e "\n![Coverage Badge](${BADGE_URL})" >> README.md
+# Update the existing badge line in README.md
+README_FILE="README.md"
+
+# Replace the existing badge line with the new one
+sed -i "s|coverage-[0-9.]\+%25-[a-z]\+\.svg|coverage-${COVERAGE}%25-${COLOR}.svg|" "$README_FILE"

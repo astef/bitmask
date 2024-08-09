@@ -1,6 +1,6 @@
 # bitmask
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/astef/bitmask.svg)](https://pkg.go.dev/github.com/astef/bitmask) ![Coverage Badge](https://img.shields.io/badge/coverage-96.5%25-green.svg)
+[![Go Reference](https://pkg.go.dev/badge/github.com/astef/bitmask.svg)](https://pkg.go.dev/github.com/astef/bitmask) ![Coverage Badge](https://img.shields.io/badge/coverage-97.5%25-green.svg)
 
 Arbitrary size bitmask (aka bitset) with efficient Slice method.
 
