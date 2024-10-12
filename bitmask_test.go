@@ -730,13 +730,43 @@ func TestUintRaw(t *testing.T) {
 
 	assert.Equal(t, 3, bm.LenUint())
 
-	assert.Equal(t, []int{ uintSize - 1, uintSize + uintSize - 1 }, indexes)
+	assert.Equal(t, []int{uintSize - 1, uintSize + uintSize - 1}, indexes)
 
-	assert.Equal(t, uint(1 << 63), bm.Uint(0))
-	assert.Equal(t, uint(1 << 63), bm.Uint(1))
+	assert.Equal(t, uint(1<<63), bm.Uint(0))
+	assert.Equal(t, uint(1<<63), bm.Uint(1))
 	assert.Equal(t, uint(0), bm.Uint(2))
-	
+
 	assert.Equal(t, uint(1), bm.UintRaw(0))
 	assert.Equal(t, uint(1), bm.UintRaw(1))
-	assert.Equal(t, uint(0), bm.UintRaw(2))	
+	assert.Equal(t, uint(0), bm.UintRaw(2))
+}
+
+func TestUintRawNocopy(t *testing.T) {
+	buf := []uint{1, 1, 0}
+	bm := NewFromUintRawNocopy(buf...)
+	indexes := indexes(bm.Iterator())
+
+	assert.Equal(t, 3, bm.LenUint())
+
+	assert.Equal(t, []int{uintSize - 1, uintSize + uintSize - 1}, indexes)
+
+	assert.Equal(t, uint(1<<63), bm.Uint(0))
+	assert.Equal(t, uint(1<<63), bm.Uint(1))
+	assert.Equal(t, uint(0), bm.Uint(2))
+
+	assert.Equal(t, uint(1), bm.UintRaw(0))
+	assert.Equal(t, uint(1), bm.UintRaw(1))
+	assert.Equal(t, uint(0), bm.UintRaw(2))
+
+	// modify own buffer and see bitmask has changed
+	buf[0], buf[2] = buf[2], buf[0]
+	assert.Equal(t, 3, bm.LenUint())
+
+	assert.Equal(t, uint(0), bm.Uint(0))
+	assert.Equal(t, uint(1<<63), bm.Uint(1))
+	assert.Equal(t, uint(1<<63), bm.Uint(2))
+
+	assert.Equal(t, uint(0), bm.UintRaw(0))
+	assert.Equal(t, uint(1), bm.UintRaw(1))
+	assert.Equal(t, uint(1), bm.UintRaw(2))
 }

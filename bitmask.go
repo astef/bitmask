@@ -45,6 +45,12 @@ func NewFromUintRaw(values ...uint) *BitMask {
 	return &BitMask{store: store, len: uintSize * uint(len(values))}
 }
 
+// Works like NewFromUintRaw, but doesn't create own buffer for bits. Helps reducing heap allocations.
+// Use with caution, since shared buffer is the likely source of complex bugs.
+func NewFromUintRawNocopy(values ...uint) *BitMask {
+	return &BitMask{store: values, len: uintSize * uint(len(values))}
+}
+
 // Returns the legth of bitmask in bits. It will never be changed for the given receiver.
 func (bm *BitMask) Len() uint {
 	return bm.len
