@@ -2,6 +2,7 @@ package bitmask
 
 import (
 	"fmt"
+	"iter"
 	"reflect"
 	"strings"
 	"unsafe"
@@ -321,6 +322,7 @@ type BitIterator struct {
 // Creates stateful iterator to iterate through all the bits.
 // See BitIterator doc for an example.
 // It is an equivalent of just calling IsSet for each bit of a BitMask.
+// For Go >=1.23 also consider Bits(), which is equivalent.
 func (bm *BitMask) Iterator() BitIterator {
 	index := uint(0)
 	return BitIterator{
@@ -337,6 +339,19 @@ func (bm *BitMask) Iterator() BitIterator {
 		Reset: func() {
 			index = 0
 		},
+	}
+}
+
+// Go >=1.23 iterator. Equivalent of Iterator().
+func (bm *BitMask) Bits() iter.Seq2[uint, bool] {
+	return func(yield func(uint, bool) bool) {
+		for i := uint(0); i < bm.len; i++ {
+			bref, m := bm.getBit(i)
+			isSet := (*bref & m) != 0
+			if !yield(i, isSet) {
+				return
+			}
+		}
 	}
 }
 

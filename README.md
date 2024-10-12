@@ -34,13 +34,24 @@ fmt.Println(base)
 [10]{1010000000}
 ```
 
-### Iteration
+### Iterator
+
+Go >=1.23 iterator is exposed by `.Bits()` method:
 
 ```go
 bm := bitmask.New(5)
 bm.Set(0)
 bm.Set(3)
 
+for idx, isSet := range bm.Bits() {
+    // use the value
+    fmt.Printf("%v) %v\n", index, value)
+}
+```
+
+There's also an old-style equivalent:
+
+```go
 it := bm.Iterator()
 for {
     ok, value, index := it.Next()
@@ -71,4 +82,17 @@ fmt.Println(bm)
 
 ```
 [513]{0000000000000000000000000000000000000000000000000000000000000000 0000000000000000000000000000000000000000000000000000000000000000 0000000000000000000000000000000000000000000000000000000000000000 0000000000000000000000000000000000000000000000000000000000000001 <more 64 bits> 1000000000000000000000000000000000000000000000000000000000000000 0000000000000000000000000000000000000000000000000000000000000000 0000000000000000000000000000000000000000000000000000000000000000 0}
+```
+
+### Non-copying constructor to avoid heap-allocating bit buffer
+
+```go
+bm := bitmask.NewFromUintRawNocopy(1, 2, 3)
+```
+
+From `go build -gcflags=-m`
+```
+inlining call to bitmask.NewFromUintRawNocopy
+... argument does not escape
+&bitmask.BitMask{...} does not escape
 ```
