@@ -3,6 +3,7 @@ package bitmask
 import (
 	"fmt"
 	"iter"
+	"math/bits"
 	"math/rand"
 	"slices"
 	"strings"
@@ -174,42 +175,42 @@ func TestCopy(t *testing.T) {
 		},
 
 		"1w_overlap1_fw": {
-			base:         NewFromUint(reverse(0b1000000000000000000000000000000000000000000000000000000000000010)),
+			base:         NewFromUint(bits.Reverse(0b1000000000000000000000000000000000000000000000000000000000000010)),
 			srcSlice:     slice{0, uintSize - 1},
 			dstSlice:     slice{1, uintSize},
-			expectedBase: NewFromUint(reverse(0b1100000000000000000000000000000000000000000000000000000000000001)).String(),
+			expectedBase: NewFromUint(bits.Reverse(0b1100000000000000000000000000000000000000000000000000000000000001)).String(),
 		},
 		"1w_overlap2_fw": {
-			base:         NewFromUint(reverse(0b1000000000000000000000000000000000000000000000000000000000000100)),
+			base:         NewFromUint(bits.Reverse(0b1000000000000000000000000000000000000000000000000000000000000100)),
 			srcSlice:     slice{0, uintSize - 2},
 			dstSlice:     slice{2, uintSize},
-			expectedBase: NewFromUint(reverse(0b1010000000000000000000000000000000000000000000000000000000000001)).String(),
+			expectedBase: NewFromUint(bits.Reverse(0b1010000000000000000000000000000000000000000000000000000000000001)).String(),
 		},
 
 		"1w_overlap1_fw_inverse": {
-			base:         NewFromUint(reverse(0b0111111111111111111111111111111111111111111111111111111111111101)),
+			base:         NewFromUint(bits.Reverse(0b0111111111111111111111111111111111111111111111111111111111111101)),
 			srcSlice:     slice{0, uintSize - 1},
 			dstSlice:     slice{1, uintSize},
-			expectedBase: NewFromUint(reverse(0b0011111111111111111111111111111111111111111111111111111111111110)).String(),
+			expectedBase: NewFromUint(bits.Reverse(0b0011111111111111111111111111111111111111111111111111111111111110)).String(),
 		},
 		"1w_overlap2_fw_inverse": {
-			base:         NewFromUint(reverse(0b0111111111111111111111111111111111111111111111111111111111111011)),
+			base:         NewFromUint(bits.Reverse(0b0111111111111111111111111111111111111111111111111111111111111011)),
 			srcSlice:     slice{0, uintSize - 2},
 			dstSlice:     slice{2, uintSize},
-			expectedBase: NewFromUint(reverse(0b0101111111111111111111111111111111111111111111111111111111111110)).String(),
+			expectedBase: NewFromUint(bits.Reverse(0b0101111111111111111111111111111111111111111111111111111111111110)).String(),
 		},
 
 		"1w_overlap1_bw": {
-			base:         NewFromUint(reverse(0b0100000000000000000000000000000000000000000000000000000000000001)),
+			base:         NewFromUint(bits.Reverse(0b0100000000000000000000000000000000000000000000000000000000000001)),
 			srcSlice:     slice{1, uintSize},
 			dstSlice:     slice{0, uintSize - 1},
-			expectedBase: NewFromUint(reverse(0b1000000000000000000000000000000000000000000000000000000000000011)).String(),
+			expectedBase: NewFromUint(bits.Reverse(0b1000000000000000000000000000000000000000000000000000000000000011)).String(),
 		},
 		"1w_overlap2_bw": {
-			base:         NewFromUint(reverse(0b0010000000000000000000000000000000000000000000000000000000000001)),
+			base:         NewFromUint(bits.Reverse(0b0010000000000000000000000000000000000000000000000000000000000001)),
 			srcSlice:     slice{2, uintSize},
 			dstSlice:     slice{0, uintSize - 2},
-			expectedBase: NewFromUint(reverse(0b1000000000000000000000000000000000000000000000000000000000000101)).String(),
+			expectedBase: NewFromUint(bits.Reverse(0b1000000000000000000000000000000000000000000000000000000000000101)).String(),
 		},
 
 		"2w_overlap1l_fw": {
@@ -229,65 +230,65 @@ func TestCopy(t *testing.T) {
 			base:         NewFromUint(0, uintMax),
 			srcSlice:     slice{uintSize / 2, uintSize + uintSize/2},
 			dstSlice:     slice{uintSize, 2 * uintSize},
-			expectedBase: NewFromUint(0, reverse(uintMax>>(uintSize/2))).String(),
+			expectedBase: NewFromUint(0, bits.Reverse(uintMax>>(uintSize/2))).String(),
 		},
 		"2w_overlap32r_bw": {
 			base:         NewFromUint(0, uintMax),
 			srcSlice:     slice{uintSize, 2 * uintSize},
 			dstSlice:     slice{uintSize / 2, uintSize + uintSize/2},
-			expectedBase: NewFromUint(reverse(uintMax>>(uintSize/2)), uintMax).String(),
+			expectedBase: NewFromUint(bits.Reverse(uintMax>>(uintSize/2)), uintMax).String(),
 		},
 
 		"3w_overlap_same_offset0_fw": {
 			base:         NewFromUint(uintMax, 0, uintMax),
 			srcSlice:     slice{0, uintSize + 2},
 			dstSlice:     slice{uintSize, 2*uintSize + 2},
-			expectedBase: NewFromUint(uintMax, uintMax, reverse(uintMax>>2)).String(),
+			expectedBase: NewFromUint(uintMax, uintMax, bits.Reverse(uintMax>>2)).String(),
 		},
 		"3w_overlap_same_offset0_bw": {
 			base:         NewFromUint(uintMax, 0, uintMax),
 			srcSlice:     slice{uintSize, 2*uintSize + 2},
 			dstSlice:     slice{0, uintSize + 2},
-			expectedBase: NewFromUint(0, reverse(0b1100000000000000000000000000000000000000000000000000000000000000), uintMax).String(),
+			expectedBase: NewFromUint(0, bits.Reverse(0b1100000000000000000000000000000000000000000000000000000000000000), uintMax).String(),
 		},
 
 		"3w_overlap_same_offset1_fw": {
 			base:         NewFromUint(uintMax, 0, uintMax),
 			srcSlice:     slice{1, uintSize + 2},
 			dstSlice:     slice{uintSize + 1, 2*uintSize + 2},
-			expectedBase: NewFromUint(uintMax, reverse(uintMax>>1), reverse(uintMax>>2)).String(),
+			expectedBase: NewFromUint(uintMax, bits.Reverse(uintMax>>1), bits.Reverse(uintMax>>2)).String(),
 		},
 		"3w_overlap_same_offset1_bw": {
 			base:         NewFromUint(uintMax, 0, uintMax),
 			srcSlice:     slice{uintSize + 1, 2*uintSize + 2},
 			dstSlice:     slice{1, uintSize + 2},
-			expectedBase: NewFromUint(1, reverse(0b1100000000000000000000000000000000000000000000000000000000000000), uintMax).String(),
+			expectedBase: NewFromUint(1, bits.Reverse(0b1100000000000000000000000000000000000000000000000000000000000000), uintMax).String(),
 		},
 
 		"2w_small_dst_same_offset0": {
 			base:         NewFromUint(uintMax, 0),
 			srcSlice:     slice{0, uintSize},
 			dstSlice:     slice{uintSize, uintSize + 2},
-			expectedBase: NewFromUint(uintMax, reverse(0b1100000000000000000000000000000000000000000000000000000000000000)).String(),
+			expectedBase: NewFromUint(uintMax, bits.Reverse(0b1100000000000000000000000000000000000000000000000000000000000000)).String(),
 		},
 		"3w_small_dst_same_offset0": {
 			base:         NewFromUint(uintMax, 0, 0),
 			srcSlice:     slice{0, uintSize},
 			dstSlice:     slice{uintSize * 2, uintSize*2 + 2},
-			expectedBase: NewFromUint(uintMax, 0, reverse(0b1100000000000000000000000000000000000000000000000000000000000000)).String(),
+			expectedBase: NewFromUint(uintMax, 0, bits.Reverse(0b1100000000000000000000000000000000000000000000000000000000000000)).String(),
 		},
 
 		"2w_small_dst_same_offset2": {
 			base:         NewFromUint(uintMax, 0),
 			srcSlice:     slice{2, uintSize},
 			dstSlice:     slice{uintSize + 2, uintSize + 4},
-			expectedBase: NewFromUint(uintMax, reverse(0b0011000000000000000000000000000000000000000000000000000000000000)).String(),
+			expectedBase: NewFromUint(uintMax, bits.Reverse(0b0011000000000000000000000000000000000000000000000000000000000000)).String(),
 		},
 		"3w_small_dst_same_offset2": {
 			base:         NewFromUint(uintMax, 0, 0),
 			srcSlice:     slice{2, uintSize},
 			dstSlice:     slice{uintSize*2 + 2, uintSize*2 + 4},
-			expectedBase: NewFromUint(uintMax, 0, reverse(0b0011000000000000000000000000000000000000000000000000000000000000)).String(),
+			expectedBase: NewFromUint(uintMax, 0, bits.Reverse(0b0011000000000000000000000000000000000000000000000000000000000000)).String(),
 		},
 	}
 	for name, tc := range tests {
