@@ -2,8 +2,11 @@ package bitmask
 
 import (
 	"fmt"
+	"iter"
 	"math/rand"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -404,17 +407,99 @@ func TestSlice(t *testing.T) {
 }
 
 func TestIterator(t *testing.T) {
-	bm := NewFromUint(uintMax, 0).Slice(62, 66)
-	it := bm.Iterator()
+	// arrange
+	uintNumber := uint(15)
+	bitNumber := uintSize * uintNumber
+	workerCount := uint(40)
 
-	for i := uint(0); i < 4; i++ {
-		ok, value, index := it.Next()
-		assert.Equal(t, i, index)
-		assert.Equal(t, true, ok)
-		assert.Equal(t, i < 2, value)
+	shouldBeSet := func(i uint) bool {
+		return i/7%5 == 0 || i/2%5 == 0 || i%9 == 0
 	}
-	ok, _, _ := it.Next()
-	assert.Equal(t, false, ok)
+
+	bm := NewFromUint(make([]uint, uintNumber)...)
+	for i := uint(0); i < bitNumber; i++ {
+		if shouldBeSet(i) {
+			bm.Set(i)
+		}
+
+	}
+
+	// act
+	wg := sync.WaitGroup{}
+
+	// new iterators
+	wg.Add(int(workerCount))
+	for workerId := uint(0); workerId < workerCount; workerId++ {
+		go func() {
+			defer wg.Done()
+
+			workerIdCopy := workerId
+
+			expectedIdx := uint(0)
+			for idx, isSet := range bm.Bits() {
+				assert.Equal(t, expectedIdx, idx)
+				assert.Equal(t, shouldBeSet(idx), isSet)
+				expectedIdx++
+
+				if workerIdCopy%10 == 0 && workerIdCopy == idx {
+					break
+				}
+			}
+		}()
+	}
+
+	// old iterators
+	wg.Add(int(workerCount))
+	for workerId := uint(0); workerId < workerCount; workerId++ {
+		go func() {
+			defer wg.Done()
+
+			workerIdCopy := workerId
+
+			it := bm.Iterator()
+			expectedIdx := uint(0)
+			totalIdx := uint(0)
+			for {
+				ok, value, idx := it.Next()
+
+				assert.Equal(t, expectedIdx, idx)
+				assert.Equal(t, expectedIdx < bitNumber, ok)
+				if ok {
+					if shouldBeSet(idx) != value {
+						t.Fail()
+					}
+					assert.Equal(t, shouldBeSet(idx), value)
+				} else {
+					assert.Equal(t, false, value)
+				}
+
+				expectedIdx++
+				totalIdx++
+
+				if workerIdCopy%8 == 0 && (totalIdx+workerIdCopy)%10 == 0 {
+					it.Reset()
+					expectedIdx = 0
+					// so that we can continue
+					workerIdCopy++
+				}
+
+				if !ok {
+					if workerIdCopy%7 == 0 && totalIdx < bitNumber*4 {
+						it.Reset()
+						expectedIdx = 0
+					} else {
+						break
+					}
+				}
+			}
+
+			// try iterate after end
+			ok, _, _ := it.Next()
+			assert.Equal(t, false, ok)
+		}()
+	}
+
+	wg.Wait()
 }
 
 func TestSliceWithString(t *testing.T) {
@@ -702,6 +787,21 @@ func indexes(it BitIterator) []int {
 	}
 	return indexes
 }
+
+// returns indexes of all set bits in a bitmask
+func indexes2(bm *BitMask) iter.Seq[uint] {
+	return func(yield func(uint) bool) {
+		for idx, isSet := range bm.Bits() {
+			if isSet {
+				if !yield(idx) {
+					return
+				}
+			}
+		}
+
+	}
+}
+
 func TestIndexes(t *testing.T) {
 	bm := New(200)
 	bm.Set(1)
@@ -718,6 +818,24 @@ func TestIndexes(t *testing.T) {
 	i4 := indexes(it)
 
 	expected := []int{1, 10, 100}
+	assert.Equal(t, expected, i1)
+	assert.Equal(t, expected, i2)
+	assert.Equal(t, expected, i3)
+	assert.Equal(t, expected, i4)
+}
+
+func TestIndexes2(t *testing.T) {
+	bm := New(200)
+	bm.Set(1)
+	bm.Set(10)
+	bm.Set(100)
+
+	i1 := slices.Collect(indexes2(bm))
+	i2 := slices.Collect(indexes2(bm))
+	i3 := slices.Collect(indexes2(bm))
+	i4 := slices.Collect(indexes2(bm))
+
+	expected := []uint{1, 10, 100}
 	assert.Equal(t, expected, i1)
 	assert.Equal(t, expected, i2)
 	assert.Equal(t, expected, i3)
@@ -744,11 +862,11 @@ func TestUintRaw(t *testing.T) {
 func TestUintRawNocopy(t *testing.T) {
 	buf := []uint{1, 1, 0}
 	bm := NewFromUintRawNocopy(buf...)
-	indexes := indexes(bm.Iterator())
+	indexes := slices.Collect(indexes2(bm))
 
 	assert.Equal(t, 3, bm.LenUint())
 
-	assert.Equal(t, []int{uintSize - 1, uintSize + uintSize - 1}, indexes)
+	assert.Equal(t, []uint{uintSize - 1, uintSize + uintSize - 1}, indexes)
 
 	assert.Equal(t, uint(1<<63), bm.Uint(0))
 	assert.Equal(t, uint(1<<63), bm.Uint(1))
