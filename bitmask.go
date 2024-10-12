@@ -3,6 +3,7 @@ package bitmask
 import (
 	"fmt"
 	"iter"
+	"math/bits"
 	"reflect"
 	"strings"
 	"unsafe"
@@ -34,7 +35,7 @@ func New(len uint) *BitMask {
 func NewFromUint(values ...uint) *BitMask {
 	store := make([]uint, len(values))
 	for i, v := range values {
-		store[i] = reverse(v)
+		store[i] = bits.Reverse(v)
 	}
 	return &BitMask{store: store, len: uintSize * uint(len(values))}
 }
@@ -64,7 +65,7 @@ func (bm *BitMask) LenUint() int {
 
 // Returns uint by index, reversing the endianness, so that {1000...} bitmask is represented by uint(1)
 func (bm *BitMask) Uint(index int) uint {
-	return reverse(bm.store[index])
+	return bits.Reverse(bm.store[index])
 }
 
 // Returns uint without reversing, more effective version of Uint method
@@ -403,16 +404,6 @@ func (bm *BitMask) String() string {
 	}
 	b.WriteString("}")
 	return b.String()
-}
-
-func reverse(value uint) uint {
-	// TODO compare with bits.Reverse()
-	res := uint(0)
-	for i := uint(0); i < uintSize; i++ {
-		res |= (value & 1) << (uintSize - i - 1)
-		value >>= 1
-	}
-	return res
 }
 
 func writeBits(b *strings.Builder, v uint, fromIndex uint, toIndex uint) {
